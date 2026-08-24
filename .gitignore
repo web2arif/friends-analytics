@@ -1,0 +1,9 @@
+@"
+combined_data.csv
+friends_clean.csv
+friends_enriched.csv
+ALL_Seasons/
+Final.html
+Final.Rmd
+.ipynb_checkpoints/
+"@ | Out-File -Encoding utf8 .gitignore
