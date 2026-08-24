@@ -32,6 +32,8 @@ Three things had to come out of each page:
 
 **Dialogue** — paragraphs matching `^[A-Za-z]+:` were split on the first colon into speaker and line.
 
+An earlier exploratory pass in R Markdown — tidytext, Bing and AFINN sentiment lexicons, ggplot2 — was used to work out which questions were worth pursuing. The Power BI dashboard supersedes it, and the source is not published here as it reproduces dialogue text in full.
+
 ```r
 for (i in seq_along(dialogue_nodes)) {
   full_text <- html_text(dialogue_nodes[i])
@@ -212,8 +214,6 @@ A custom theme (`powerbi/friends_analytics_theme.json`) fixes six character colo
 ## Repository
 
 ```
-├── R/
-│   └── scrape_and_parse.Rmd          rvest/XPath transcript extraction
 ├── notebooks/
 │   └── friends_enrichment.ipynb     VADER, DistilRoBERTa, derived tables
 ├── data/processed/                  Six aggregate tables + special episodes
