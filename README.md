@@ -200,10 +200,10 @@ Every character now shows all five relationships, and totals are comparable.
 | Where It Happened | Where does the show actually take place? |
 | How They Speak | Who monologues, how often, at what length? |
 
-![The Conversations](images/The conversations.png)
-![Sentiment Story](images/Sentiment Story.png)
-![Where It Happened](images/Where it happened.png)
-![How They Speak](images/How they speak.png)
+![The Conversations](images/The_conversations.png)
+![Sentiment Story](images/Sentiment_Story.png)
+![Where It Happened](images/Where_it_happened.png)
+![How They Speak](images/How_they_speak.png)
 
 A custom theme (`powerbi/friends_analytics_theme.json`) fixes six character colours applied consistently across every page, so a colour means the same thing wherever it appears.
 
