@@ -2,7 +2,7 @@
 
 An end-to-end analysis of 54,008 lines of dialogue from *Friends* (1994–2004): HTML transcripts, through cleaning and NLP enrichment, to a five-page Power BI dashboard.
 
-![Overview](images/01-overview.png)
+![Overview](images/Overview.png)
 
 ---
 
@@ -200,10 +200,10 @@ Every character now shows all five relationships, and totals are comparable.
 | Where It Happened | Where does the show actually take place? |
 | How They Speak | Who monologues, how often, at what length? |
 
-![The Conversations](images/02-conversations.png)
-![Sentiment Story](images/03-sentiment.png)
-![Where It Happened](images/04-locations.png)
-![How They Speak](images/05-speech.png)
+![The Conversations](images/The conversations.png)
+![Sentiment Story](images/Sentiment Story.png)
+![Where It Happened](images/Where it happened.png)
+![How They Speak](images/How they speak.png)
 
 A custom theme (`powerbi/friends_analytics_theme.json`) fixes six character colours applied consistently across every page, so a colour means the same thing wherever it appears.
 
