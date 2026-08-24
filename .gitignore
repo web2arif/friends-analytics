@@ -6,4 +6,5 @@ ALL_Seasons/
 Final.html
 Final.Rmd
 .ipynb_checkpoints/
+Html
 "@ | Out-File -Encoding utf8 .gitignore
