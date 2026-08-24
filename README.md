@@ -1,152 +1,246 @@
-# Friends TV Show — Dialogue Dataset
+# Friends — Dialogue Analytics
 
-A cleaned, analysis-ready dataset of dialogue lines from all 10 seasons of *Friends* (1994–2004), built from HTML episode transcripts via web scraping.
+An end-to-end analysis of 54,008 lines of dialogue from *Friends* (1994–2004): HTML transcripts, through cleaning and NLP enrichment, to a five-page Power BI dashboard.
+
+![Overview](images/01-overview.png)
 
 ---
 
-## Files
+## Pipeline
 
-| File | Rows | Description |
+| Stage | Tool | Output |
 |---|---|---|
-| `friends_clean.csv` | 54,008 | Main dataset — all canonical episodes, cleaned |
-| `friends_special_episodes.csv` | 177 | Unmatched rows (Conan O'Brien special + misc.) |
+| Scrape & parse | R — `rvest`, XPath | Line-level rows: season, episode, scene, writer, character, dialogue |
+| Clean | Python — pandas, re | 54,008 canonical lines, 16 normalised locations |
+| Sentiment | Python — VADER | Compound score per line, −1 to +1 |
+| Emotion | Python — DistilRoBERTa | 7-class label, main cast |
+| Derived metrics | Python — pandas | Interaction network, monologues, vocabulary richness |
+| Model | Power BI — DAX | Star schema with two dimension tables |
+| Dashboard | Power BI | 5 pages |
 
 ---
 
-## Dataset at a Glance
+### Scraping and parsing
 
-- **Seasons:** 1–10
-- **Episodes:** 214
-- **Writers:** 63 unique credited writers
-- **Locations:** 16 canonical locations (normalised from 100+ raw variants)
-- **Main cast lines:** Rachel 8,558 · Ross 8,403 · Monica 7,765 · Chandler 7,772 · Joey 7,599 · Phoebe 6,866
+Episode transcripts were held as local HTML files named by season and episode (`0101.html`). Each was parsed with `rvest` and XPath.
 
----
+Three things had to come out of each page:
 
-## Columns
+**Writer attribution** — source pages use nine different header forms (`Written by:`, `Story by:`, `Part 1 written by:` and others), so the XPath predicate is built dynamically from the full set rather than matching one pattern.
 
-| Column | Type | Description |
-|---|---|---|
-| `Season` | int | Season number (1–10) |
-| `Episode` | int | Episode number within the season |
-| `EpisodeLabel` | str | Formatted label e.g. `S01E01` |
-| `WrittenBy` | str | Episode writer(s), normalised |
-| `Scene` | str | Raw scene header from transcript |
-| `Location` | str | Canonical location (see Location Mapping below) |
-| `Character` | str | Character name, lowercased |
-| `IsMainCharacter` | bool | True for the 6 main cast members |
-| `IsChorusLine` | bool | True for lines attributed to `all` (group chants etc.) |
-| `Dialogue` | str | Cleaned dialogue text |
-| `WordCount` | int | Word count of the dialogue line |
+**Scene boundaries** — headers matching `[Scene: ...]` were extracted first, then the paragraph nodes walked in order, incrementing a scene counter whenever a header was hit. This is what gives every dialogue line a scene index, and it is what makes the co-occurrence analysis possible later.
 
----
+**Dialogue** — paragraphs matching `^[A-Za-z]+:` were split on the first colon into speaker and line.
 
-## Source
-
-Transcripts were scraped from episode HTML files. Each episode's full transcript was parsed to extract scene headers, character attributions, and dialogue line by line.
-
----
-
-## Cleaning Steps
-
-The raw data had several issues that were fixed in `cleaning.py`:
-
-**Dialogue text**
-- 15,423 lines contained embedded `\r\n` carriage returns (line wraps from the HTML source). All collapsed to single-line clean text.
-- Windows-1252 smart quote artifacts (`\x92`) replaced with standard apostrophes throughout.
-
-**Character names**
-- Lowercased and stripped of whitespace across all rows.
-- `mnca` → `monica` (recurring typo in source transcripts)
-- Other fixes: `racheal`, `phoebs`, `chandlerv`, `dr. geller`, `joey tribbiani`, `mr. geller`
-- Lines attributed to `all` (group responses) flagged via `IsChorusLine` rather than dropped.
-
-**Location**
-- Raw `Scene` field contained 100+ inconsistent location strings (e.g. `Monica and Rachel's`, `Monica and Chandlers`, `Monica and Chandler's apartment`, `Monica` — all the same place).
-- Extracted via regex from the `[Scene: ...]` header pattern.
-- Normalised into 16 canonical locations using a manually curated mapping.
-- Locations with fewer than 200 lines consolidated into `Other`.
-
-**WrittenBy**
-- Leading/trailing whitespace and trailing periods stripped.
-- Mixed separators (`and`, `,`) standardised to ` & `.
-- Misspellings fixed: `Kaufmann` → `Kauffman`, `Astroff` → `Astrof`, `Jeff Greenstein` → `Jeffrey Greenstein`.
-- Reduced from 85 raw variants to 63 clean unique writers.
-
-**Added columns**
-- `WordCount` — computed from cleaned `Dialogue`
-- `IsMainCharacter` — True for rachel, ross, chandler, monica, joey, phoebe
-- `IsChorusLine` — True where Character == 'all'
-- `EpisodeLabel` — formatted `SxxExx` string for easy filtering
-
-**Excluded rows**
-- 177 rows with null Season/Episode (a Conan O'Brien behind-the-scenes special and a handful of unmatched lines) saved separately in `friends_special_episodes.csv`.
-- 6 rows with null/empty Dialogue dropped.
-
----
-
-## Known Limitations
-
-- **Season 2 is incomplete** — only 12 of ~24 episodes were successfully scraped. Treat Season 2 trends as partial data.
-- **`Other` location bucket** is large (~12K rows) and includes many one-off locations (Barbados, various hotels, the rest stop etc.). Fine for aggregate analysis; not suitable for granular location work.
-- **Scene field has 388 nulls** — rows where no scene header appeared in the transcript before that line. Location is set to `Unknown` for these.
-- Dialogue is as written in fan-maintained transcripts and may contain minor transcription errors from the original source.
-
----
-
-## Location Mapping (Canonical)
-
-| Canonical Name | Covers |
-|---|---|
-| Monica's Apartment | Monica & Rachel's, Monica & Chandler's, all bedroom/kitchen variants |
-| Central Perk | All Central Perk variants incl. `Ross is in Central Perk` |
-| Chandler & Joey's Apartment | Chandler and Joey's, At Chandler and Joey's, etc. |
-| Joey's Apartment | Joey & Rachel's (later seasons) |
-| Ross's Apartment | Ross's, Ross', Ross & Rachel's |
-| Phoebe's Apartment | Phoebe's, Phoebe & Rachel's |
-| Hospital | Delivery room, labor room, recovery room, emergency room, nursery |
-| The Hallway | Hallway, corridor, between the apartments |
-| Restaurant | A restaurant, The restaurant, Moondance Diner |
-| Exterior / Street | A street, Outside Central Perk, The park |
-| Rachel's Office / Room | Bloomingdale's, Ralph Lauren, Rachel's office, Rachel's room |
-| Chandler's Office | Chandler's office, office in Tulsa, conference room in Tulsa |
-| Away / Travel | Barbados, beach house, casino, cabin, rest stop |
-| Film / TV Set | Silvercup Studios, movie set, the set |
-| Carol & Susan's | Carol and Susan's |
-| Airport | Airport, boarding scenes |
-
----
-
-## Usage
-
-```python
-import pandas as pd
-
-df = pd.read_csv('friends_clean.csv')
-
-# Main cast only
-main = df[df['IsMainCharacter']]
-
-# Lines per character per season
-main.groupby(['Season', 'Character'])['Dialogue'].count()
-
-# Total words spoken
-main.groupby('Character')['WordCount'].sum().sort_values(ascending=False)
-
-# Top locations
-df['Location'].value_counts()
+```r
+for (i in seq_along(dialogue_nodes)) {
+  full_text <- html_text(dialogue_nodes[i])
+  if (full_text %in% scenes) {
+    scene_counter <- which(scenes == full_text)
+  } else if (str_detect(full_text, "^[A-Za-z]+:")) {
+    split_text <- str_split(full_text, ":\\s*", n = 2)[[1]]
+    characters <- c(characters, split_text[1])
+    dialogues  <- c(dialogues,  split_text[2])
+    scene_indices <- c(scene_indices, scene_counter)
+  }
+}
 ```
 
 ---
 
-## Project Context
+## The dataset
 
-This dataset was built as part of a data analytics portfolio project. The full project includes a 4-page Power BI dashboard covering character analysis, season/episode breakdowns, location analysis, and word count depth.
+**54,008 lines · 214 episodes · 312 speaking characters · 63 credited writers · 16 canonical locations**
 
-**Stack:** Python (pandas, re) · Power BI · Web scraping (BeautifulSoup / requests)
+Main cast line counts: Rachel 8,558 · Ross 8,403 · Chandler 7,772 · Monica 7,765 · Joey 7,599 · Phoebe 6,866
+
+### Schema
+
+| Column | Type | Description |
+|---|---|---|
+| `Season` | int | 1–10 |
+| `Episode` | int | Episode number within season |
+| `EpisodeLabel` | str | `S01E01` |
+| `WrittenBy` | str | Credited writer(s), normalised |
+| `Scene` | str | Raw scene header from transcript |
+| `Location` | str | Canonical location |
+| `Character` | str | Lowercased character name |
+| `IsMainCharacter` | bool | True for the six leads |
+| `IsChorusLine` | bool | True for lines attributed to `all` |
+| `Dialogue` | str | Cleaned text |
+| `WordCount` | int | Words in the line |
+
+### Cleaning
+
+The raw parse needed substantial work before it was usable.
+
+**Text.** 15,423 lines carried embedded `\r\n` from HTML line wraps, collapsed to single lines. Windows-1252 smart-quote artifacts (`\x92`) replaced throughout.
+
+**Character names.** Lowercased and trimmed. Source transcripts contained recurring typos — `mnca` for monica, plus `racheal`, `phoebs`, `chandlerv` — and inconsistent formal forms (`dr. geller`, `mr. geller`, `joey tribbiani`). Group lines attributed to `all` were flagged via `IsChorusLine` rather than dropped, so they stay countable but excludable.
+
+**Locations.** The raw `Scene` field held 100+ variants of the same handful of places: `Monica and Rachel's`, `Monica and Chandlers`, `Monica and Chandler's apartment`, and bare `Monica` all refer to one apartment. Locations were regex-extracted from the `[Scene: ...]` header and mapped to 16 canonical names, with anything under 200 lines consolidated into `Other`.
+
+**Writers.** 85 raw variants reduced to 63. Separators standardised (`and`, `,` → ` & `), misspellings corrected (`Kaufmann` → `Kauffman`, `Astroff` → `Astrof`).
+
+**Excluded.** 177 rows with null season/episode — a Conan O'Brien behind-the-scenes special and unmatched fragments — split into `friends_special_episodes.csv`. Six rows with empty dialogue dropped.
+
+---
+
+## NLP enrichment
+
+**VADER** on all lines. Rule-based and tuned for conversational text, which fits dialogue better than models trained on reviews or formal prose. Compound scores bucketed at the conventional ±0.05 thresholds.
+
+**DistilRoBERTa** (`j-hartmann/emotion-english-distilroberta-base`) for seven-class emotion — joy, anger, sadness, fear, surprise, disgust, neutral — run on main-cast lines in batches of 32 with 512-character truncation. Scoping to the leads was deliberate: emotion trends across a character with three lines are noise.
+
+**Derived tables:**
+
+```python
+# Monologues — 50-word threshold
+df['is_monologue'] = df['WordCount'] >= 50
+
+# Scene co-occurrence between leads
+scene_groups = (df[df['IsMainCharacter']]
+    .groupby(['Season','Episode','Scene'])['Character']
+    .apply(lambda x: list(set(x))))
+
+for a, b in combinations(sorted(chars), 2):
+    edges.append({'source': a, 'target': b})
+```
+
+---
+
+## Data modelling
+
+All six aggregate tables keyed on `Character`, producing many-to-many relationships in every direction. That schema returns different totals depending on which filter path Power BI picks, and eventually refuses new relationships with ambiguity errors.
+
+Two dimension tables were built in DAX, deriving their key sets from the union of every fact table so no character or season could be silently dropped:
+
+```dax
+DimCharacter =
+DISTINCT(
+    UNION(
+        SELECTCOLUMNS(Dialogue,       "Character", Dialogue[Character]),
+        SELECTCOLUMNS(Sentiment_Agg,  "Character", Sentiment_Agg[Character]),
+        SELECTCOLUMNS(Emotion_Agg,    "Character", Emotion_Agg[Character]),
+        SELECTCOLUMNS(Vocab,          "Character", Vocab[Character]),
+        SELECTCOLUMNS(Monologues,     "Character", Monologues[Character])
+    )
+)
+```
+
+All relationships were rebuilt one-to-many, single-direction, radiating outward from the dimensions. Slicers bind to the dimensions rather than the facts, so one selection filters all six tables consistently.
+
+### The interaction asymmetry
+
+The co-occurrence builder uses `combinations(sorted(chars), 2)`, storing each pair once in alphabetical order. Chandler therefore only ever appeared as `source`, Ross only ever as `target`.
+
+Read directly, this would have made Chandler the most connected character in the show — as a pure artifact of the alphabet.
+
+A symmetric view was built by unioning the table with itself, swapped:
+
+```dax
+InteractionsFull =
+UNION(
+    SELECTCOLUMNS(Interactions,
+        "Character", Interactions[source],
+        "Partner",   Interactions[target],
+        "SharedScenes", Interactions[shared_scenes]),
+    SELECTCOLUMNS(Interactions,
+        "Character", Interactions[target],
+        "Partner",   Interactions[source],
+        "SharedScenes", Interactions[shared_scenes])
+)
+```
+
+Every character now shows all five relationships, and totals are comparable.
+
+---
+
+## Findings
+
+**The show is domestic, not a coffeehouse.** Monica's apartment carries 41% of all located dialogue — 15,473 lines against Central Perk's 8,748, and more than every other apartment combined.
+
+**Speaking time is uneven by about a quarter.** Rachel leads with 8,558 lines against Phoebe's 6,866 — a 25% gap across an ensemble that ran a decade.
+
+**Monologue habits diverge sharply.** Ross delivers 153 monologues to Monica's 85, and at greater average length. Plotting frequency against length separates the cast into quadrants: Ross and Rachel speak at length, Monica rarely and briefly, Joey often but short.
+
+**Sentiment barely moves.** Average VADER compound sits between 0.10 and 0.20 for every character in every season. Season 7 scores highest, season 1 lowest, but the range is narrow enough that the honest summary is stability, not trend.
+
+---
+
+## Limitations
+
+**Season 2 is partial and excluded.** Only 12 of ~24 episodes were successfully scraped. Rather than present a season at half coverage alongside complete ones, it is filtered out of the dashboard, which reports 202 episodes. The data remains in the dataset for anyone who wants it.
+
+**Coverage varies across the remaining seasons**, so cross-season comparisons use per-episode averages rather than totals.
+
+**Sentiment is not humour.** VADER measures valence. Sarcasm — a substantial part of at least one character's entire register — routinely scores negative even when the line is a joke. No claim is made here about which season is funniest, because this data cannot support one.
+
+**Vocabulary richness was measured and excluded.** Type-token ratio falls mechanically as speech volume rises: more lines means more repetition means a lower ratio, regardless of actual lexical variety. The six leads' TTR scores tracked their line counts almost exactly, so the metric was computed, judged confounded, and left out rather than presented as a finding.
+
+**Shared scenes are co-presence, not conversation.** Two characters in a scene are counted whether or not they address each other.
+
+**The `Other` location bucket holds ~12K rows** of one-off places — hotels, Barbados, the rest stop. Fine in aggregate, not usable for granular location work.
+
+**388 rows have no scene header** preceding them in the transcript; their location is `Unknown`.
+
+**Sentiment and emotion cover the six leads only.** The corpus holds 312 speaking characters.
+
+---
+
+## Dashboard
+
+| Page | Question |
+|---|---|
+| Overview | How much data is here, and how is it distributed? |
+| The Conversations | Who shares the most screen time with whom? |
+| Sentiment Story | Does emotional tone shift across ten seasons? |
+| Where It Happened | Where does the show actually take place? |
+| How They Speak | Who monologues, how often, at what length? |
+
+![The Conversations](images/02-conversations.png)
+![Sentiment Story](images/03-sentiment.png)
+![Where It Happened](images/04-locations.png)
+![How They Speak](images/05-speech.png)
+
+A custom theme (`powerbi/friends_analytics_theme.json`) fixes six character colours applied consistently across every page, so a colour means the same thing wherever it appears.
+
+**To explore:** download `powerbi/friends_analytics.pbix` and open in [Power BI Desktop](https://powerbi.microsoft.com/desktop/) (free).
+
+---
+
+## Repository
+
+```
+├── R/
+│   └── scrape_and_parse.Rmd          rvest/XPath transcript extraction
+├── notebooks/
+│   └── friends_enrichment.ipynb     VADER, DistilRoBERTa, derived tables
+├── data/processed/                  Six aggregate tables + special episodes
+├── powerbi/
+│   ├── friends_analytics.pbix
+│   └── friends_analytics_theme.json
+└── images/                          Dashboard screenshots
+```
+
+The full line-level dataset is not committed — it reproduces the show's dialogue in full. The processed aggregates are derived statistics and are included so the dashboard can be explored without re-running the pipeline.
+
+---
+
+## Further work
+
+**Join episode ratings.** The question this project does not answer is whether emotional tone relates to how audiences received an episode. Joining IMDb ratings on season-episode would turn a descriptive analysis into a testable one.
+
+**Line-level interaction parsing.** Reconstructing who speaks *to* whom, rather than who is merely present, would give a genuine conversation network.
+
+**Recover season 2.** Half its episodes failed to scrape; a second pass against a different transcript source would complete the corpus.
 
 ---
 
 ## Acknowledgements
 
-Transcript data sourced from fan-maintained HTML episode transcripts. All content rights belong to Warner Bros. / Bright/Kauffman/Crane Productions. This dataset is for personal educational and portfolio use only.
+Transcripts sourced from fan-maintained HTML episode pages. All content rights belong to Warner Bros. and Bright/Kauffman/Crane Productions. This project is for educational and portfolio use.
+
+---
+
+**Stack:** R (rvest, dplyr, stringr) · Python (pandas, VADER, HuggingFace Transformers) · Power BI · DAX · Power Query
